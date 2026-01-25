@@ -1,0 +1,18 @@
+# Сборка
+build/
+cmake-build-debug/
+.idea/
+.vscode/
+*.user
+
+# ОС
+.DS_Store
+Thumbs.db
+
+# Логи и базы
+*.log
+
+# Отчеты и презентации (ВОТ СЮДА ВСТАВЛЯЙ!)
+*.docx
+*.pptx
+*.pdf

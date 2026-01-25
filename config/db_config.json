@@ -1,0 +1,7 @@
+{
+  "host": "localhost",
+  "port": 5432,
+  "db_name": "ib_company_db",
+  "user": "admin",
+  "password": "secret_password"
+}
