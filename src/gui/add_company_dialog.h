@@ -1,5 +1,4 @@
 #pragma once
-
 #include <QDialog>
 #include <QLineEdit>
 #include <QDateEdit>
@@ -13,12 +12,13 @@ class AddCompanyDialog : public QDialog {
 public:
     explicit AddCompanyDialog(QWidget *parent = nullptr);
     
-    // метод для получения введенных данных
     Company getCompanyData() const;
+
+    //Заполнить поля для редактирования
+    void setCompanyData(const Company& c);
 
 private:
     void setupUI();
-
     QLineEdit* m_nameEdit;
     QComboBox* m_typeCombo;
     QDateEdit* m_dateEdit;

@@ -3,11 +3,10 @@
 #include <QString>
 #include <QDate>
 
-// структура компании
+// Структура компании- передачa данных между БД и Интерфейсом
 struct Company {
-    int id = -1;
-    QString name;// название
-    QString type;// тип (вендор, интегратор)
-    QDate licenseDate;// дата лицензии
-    QString description;//описание
+    QString name;
+    QString type;
+    QDate licenseDate;
+    QString description;
 };

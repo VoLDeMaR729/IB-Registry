@@ -23,7 +23,7 @@ void LoginDialog::setupUI() {
     // Пароль
     layout->addWidget(new QLabel("Пароль:", this));
     m_passwordEdit = new QLineEdit(this);
-    m_passwordEdit->setEchoMode(QLineEdit::Password); // Скрывать символы звездочками
+    m_passwordEdit->setEchoMode(QLineEdit::Password); // Скрывать символы
     layout->addWidget(m_passwordEdit);
 
     // Кнопка входа

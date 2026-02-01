@@ -10,23 +10,28 @@ public:
     DbManager();
     ~DbManager();
 
-    // Подключение и инициализация
+    // Открытие соединения с БД
     bool connect();
+    // Создание таблиц
     bool initTables();
 
-    // Работа с компаниями
     bool addCompany(const Company& company);
-    bool removeCompany(int id);
+    bool removeCompany(const QString& name);
+    bool updateCompany(const QString& name, const QDate& newDate, const QString& newDesc);
+
+    // Поиск компаний с фильтрацией
     std::vector<Company> searchCompanies(const QString& name, const QString& type);
+    
+    // Получение списка всех компаний
     std::vector<Company> getAllCompanies();
 
-    //Безопасность, Проверка логина и пароля
+    // Аутентификация пользователя 
     bool authenticate(const QString& login, const QString& password);
-    // Создание пользователя (для админа)
+    
+    // Добавление нового пользователя (функционал для будущего расширения)
     bool addUser(const QString& login, const QString& password);
 
 private:
     QSqlDatabase m_db;
-    // Вспомогательная функция хеширования
     QString hashPassword(const QString& password);
 };

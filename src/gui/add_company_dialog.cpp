@@ -51,3 +51,16 @@ Company AddCompanyDialog::getCompanyData() const {
     c.description = m_descEdit->toPlainText();
     return c;
 }
+
+void AddCompanyDialog::setCompanyData(const Company& c) {
+    m_nameEdit->setText(c.name);
+    m_nameEdit->setReadOnly(true);
+    
+    m_typeCombo->setCurrentText(c.type);
+    m_typeCombo->setEnabled(false);
+
+    m_dateEdit->setDate(c.licenseDate);
+    m_descEdit->setText(c.description);
+
+    setWindowTitle("Редактирование компании");
+}

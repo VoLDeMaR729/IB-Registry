@@ -11,35 +11,35 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    // Конструктор принимает ссылку на подключенную базу
     explicit MainWindow(DbManager& db, QWidget *parent = nullptr);
     ~MainWindow();
 
 private slots:
-    //Слоты кнопок
+    // Слоты кнопок
     void onAddClicked();
     void onDeleteClicked();
     
-    //Слоты поиска
+    // Слоты поиска
     void onSearchChanged();
 
-    //Слоты меню
-    void onActionAbout(); // О программе
-    void onActionExit();  // Выход
+    //Обработка двойного клика по таблице
+    void onTableDoubleClicked(int row, int column);
+
+    // Слоты меню
+    void onActionAbout();
+    void onActionExit();
 
 private:
     void setupUI();
-    void createMenuBar(); // Метод создания верхнего меню
+    void createMenuBar();
     void loadData();
 
     DbManager& m_db;
     
-    // Элементы таблицы и кнопок
     QTableWidget* m_table;
     QPushButton* m_btnAdd;
     QPushButton* m_btnDelete;
     
-    // Элементы поиска
     QLineEdit* m_searchEdit;
     QComboBox* m_filterCombo;
 };
