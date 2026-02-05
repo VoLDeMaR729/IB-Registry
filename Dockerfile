@@ -1,6 +1,5 @@
 FROM ubuntu:22.04
 
-# Отключаем вопросы при установке
 ENV DEBIAN_FRONTEND=noninteractive
 
 # 1. Установка зависимостей

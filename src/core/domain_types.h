@@ -1,11 +1,13 @@
 #pragma once
-
 #include <QString>
 #include <QDate>
 
-// Структура компании- передачa данных между БД и Интерфейсом
 struct Company {
     QString name;
+    QString inn;
+    QString ogrn;
+    QString address;
+    QString licenseNum;
     QString type;
     QDate licenseDate;
     QString description;

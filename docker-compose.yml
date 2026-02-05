@@ -1,46 +1,57 @@
 version: '3.8'
 
 services:
-  db:
-    container_name: ib_registry_db
+  ib_registry_db:
     image: postgres:15
+    container_name: ib_registry_db
     environment:
       POSTGRES_DB: ib_company_db
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: secret_password
-    ports:
-      - "5432:5432"
     volumes:
-      - ib_registry_db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    restart: always
+    networks:
+      - ib_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d ib_company_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  pgadmin:
-    container_name: ib_registry_admin
+  ib_registry_app:
+    build: .
+    container_name: ib_registry_app
+    depends_on:
+      ib_registry_db:
+        condition: service_healthy
+    environment:
+      DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: 1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    networks:
+      - ib_net
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+  ib_registry_admin:
     image: dpage/pgadmin4
+    container_name: ib_registry_admin
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: root
+      PGADMIN_DEFAULT_PASSWORD: admin
     ports:
       - "5050:80"
     depends_on:
-      - db
-
-  app:
-    container_name: ib_registry_app
-    build: .
-    depends_on:
-      - db
-    environment:
-      - DISPLAY=${DISPLAY}
-      - DB_HOST=db
-      - DB_NAME=ib_company_db
-      - DB_USER=admin
-      - DB_PASS=secret_password
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - ./config:/app/config
-    network_mode: host
+      - ib_registry_db
+    networks:
+      - ib_net
 
 volumes:
-  ib_registry_db_data:
+  db_data:
+
+networks:
+  ib_net:
+    driver: bridge

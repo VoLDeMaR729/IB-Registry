@@ -1,30 +1,5 @@
 #!/bin/bash
 
-echo "ЗАПУСК В ГИБРИДНОМ РЕЖИМЕ"
-echo "(БД в Docker + Приложение локально)"
-
-# 1. Запускаем только сервис бд, игнорируя сервис app
-docker compose up -d db pgadmin
-
-# 2. Проверяем, создана ли папка сборки
-if [ ! -d "build" ]; then
-    echo "Создаю папку build..."
-    mkdir build
-fi
-
-# 3. Заходим в build и собираем проект
-cd build
-echo "Компиляция проекта..."
-cmake ..
-make -j$(nproc)
-
-# Проверяем, успешно ли прошла сборка
-if [ $? -eq 0 ]; then
-    echo "Запуск приложения..."
-    echo "---------------------------------------"
-    # Запускаем локальный файл
-    ./ib_registry_app
-else
-    echo "Ошибка сборки! Проверьте код."
-    exit 1
-fi
+xhost +local:docker
+sudo docker compose down --remove-orphans
+sudo docker compose up --build

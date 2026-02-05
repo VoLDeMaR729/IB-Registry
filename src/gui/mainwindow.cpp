@@ -26,16 +26,14 @@ void MainWindow::setupUI() {
 
     QWidget* central = new QWidget(this);
     setCentralWidget(central);
-    resize(900, 600);
+    resize(1200, 600);
     setWindowTitle("Реестр ИБ-Компаний");
 
     QVBoxLayout* mainLayout = new QVBoxLayout(central);
-
-    // Панель поиска
     QHBoxLayout* searchLayout = new QHBoxLayout();
     
     m_searchEdit = new QLineEdit(this);
-    m_searchEdit->setPlaceholderText("Поиск по названию...");
+    m_searchEdit->setPlaceholderText("Поиск по названию, ИНН или № лицензии...");
     connect(m_searchEdit, &QLineEdit::textChanged, this, &MainWindow::onSearchChanged);
 
     m_filterCombo = new QComboBox(this);
@@ -49,16 +47,23 @@ void MainWindow::setupUI() {
     searchLayout->addWidget(m_filterCombo);
     
     mainLayout->addLayout(searchLayout);
-
     m_table = new QTableWidget(this);
-    m_table->setColumnCount(3); 
-    m_table->setHorizontalHeaderLabels({"Название", "Тип", "Дата лицензии"});
-    m_table->horizontalHeader()->setStretchLastSection(true);
+
+    m_table->setColumnCount(7); 
+    m_table->setHorizontalHeaderLabels({"Имя", "ИНН", "Адрес", "Тип", "Лицензия №", "Дата", "Описание"});
+
+    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    m_table->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Stretch);
+    
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    
+    connect(m_table, &QTableWidget::cellDoubleClicked, this, &MainWindow::onTableDoubleClicked);
+
     mainLayout->addWidget(m_table);
 
-    // Кнопки
     QHBoxLayout* btnLayout = new QHBoxLayout();
     m_btnAdd = new QPushButton("Добавить компанию", this);
     m_btnDelete = new QPushButton("Удалить выбранное", this);
@@ -69,11 +74,6 @@ void MainWindow::setupUI() {
     btnLayout->addWidget(m_btnAdd);
     btnLayout->addWidget(m_btnDelete);
     mainLayout->addLayout(btnLayout);
-    //настройки таблицы
-    m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    connect(m_table, &QTableWidget::cellDoubleClicked, this, &MainWindow::onTableDoubleClicked);
-
-    mainLayout->addWidget(m_table);
 }
 
 void MainWindow::createMenuBar() {
@@ -99,7 +99,7 @@ void MainWindow::onActionAbout() {
     QString info = "Реестр компаний информационной безопасности\n\n"
                    "Курсовой проект\n"
                    "Стек технологий: C++, Qt, PostgreSQL, Docker\n"
-                   "Версия: 1.1.0 (No IDs)";
+                   "Версия: 2.0.0 (Extended)";
     QMessageBox::about(this, "О программе", info);
 }
 
@@ -108,22 +108,30 @@ void MainWindow::loadData() {
     QString name = m_searchEdit->text();
     QString type = m_filterCombo->currentText();
     
-    //поиск возвращает и описание
     std::vector<Company> companies = m_db.searchCompanies(name, type);
 
     for (const auto& c : companies) {
         int row = m_table->rowCount();
         m_table->insertRow(row);
 
-        // Имя + скрытое описание
         QTableWidgetItem* nameItem = new QTableWidgetItem(c.name);
-        nameItem->setData(Qt::UserRole, c.description); // Прячем описание тут
-        
+        nameItem->setData(Qt::UserRole, c.ogrn);
         m_table->setItem(row, 0, nameItem);
-        m_table->setItem(row, 1, new QTableWidgetItem(c.type));
-        m_table->setItem(row, 2, new QTableWidgetItem(c.licenseDate.toString("dd.MM.yyyy")));
+
+        m_table->setItem(row, 1, new QTableWidgetItem(c.inn));
+
+        m_table->setItem(row, 2, new QTableWidgetItem(c.address));
+
+        m_table->setItem(row, 3, new QTableWidgetItem(c.type));
+
+        m_table->setItem(row, 4, new QTableWidgetItem(c.licenseNum));
+
+        m_table->setItem(row, 5, new QTableWidgetItem(c.licenseDate.toString("dd.MM.yyyy")));
+
+        m_table->setItem(row, 6, new QTableWidgetItem(c.description));
     }
 }
+
 void MainWindow::onSearchChanged() {
     loadData();
 }
@@ -135,7 +143,7 @@ void MainWindow::onAddClicked() {
             loadData();
             LOG_INFO("Новая компания добавлена");
         } else {
-            QMessageBox::critical(this, "Ошибка", "Не удалось сохранить в БД. Возможно, такая компания уже есть.");
+            QMessageBox::critical(this, "Ошибка", "Не удалось сохранить в БД. Проверьте уникальность Имени или ИНН.");
         }
     }
 }
@@ -147,7 +155,6 @@ void MainWindow::onDeleteClicked() {
         return;
     }
 
-    // Берем название компании из 0-й колонки 
     QString companyName = m_table->item(currentRow, 0)->text();
 
     auto reply = QMessageBox::question(this, "Удаление", 
@@ -155,7 +162,7 @@ void MainWindow::onDeleteClicked() {
                                      QMessageBox::Yes | QMessageBox::No);
     
     if (reply == QMessageBox::Yes) {
-        if (m_db.removeCompany(companyName)) { // Передаем имя
+        if (m_db.removeCompany(companyName)) { 
             loadData();
             LOG_INFO("Компания удалена: {}", companyName.toStdString());
         } else {
@@ -163,25 +170,27 @@ void MainWindow::onDeleteClicked() {
         }
     }
 }
+
 void MainWindow::onTableDoubleClicked(int row, int column) {
-    // Собираем данные из строки
+    // Собираем данные из строки таблицы обратно в структуру Company
     Company c;
     c.name = m_table->item(row, 0)->text();
-    c.description = m_table->item(row, 0)->data(Qt::UserRole).toString(); // Достаем скрытое
-    c.type = m_table->item(row, 1)->text();
-    c.licenseDate = QDate::fromString(m_table->item(row, 2)->text(), "dd.MM.yyyy");
+    c.ogrn = m_table->item(row, 0)->data(Qt::UserRole).toString();
+    c.inn = m_table->item(row, 1)->text();
+    c.address = m_table->item(row, 2)->text();
+    c.type = m_table->item(row, 3)->text();
+    c.licenseNum = m_table->item(row, 4)->text();
+    c.licenseDate = QDate::fromString(m_table->item(row, 5)->text(), "dd.MM.yyyy");
+    c.description = m_table->item(row, 6)->text();
 
-    // Открываем диалог
+    // Открываем диалог в режиме редактирования
     AddCompanyDialog dialog(this);
-    dialog.setCompanyData(c); // Заполняем поля
+    dialog.setCompanyData(c); 
 
     if (dialog.exec() == QDialog::Accepted) {
-        // Получаем новые данные
         Company newC = dialog.getCompanyData();
-        
-        // Отправляем в базу
-        if (m_db.updateCompany(c.name, newC.licenseDate, newC.description)) {
-            loadData(); // Обновляем таблицу
+        if (m_db.updateCompany(c.name, newC.address, newC.licenseNum, newC.licenseDate, newC.description)) {
+            loadData(); 
             LOG_INFO("Компания обновлена: {}", c.name.toStdString());
         } else {
             QMessageBox::critical(this, "Ошибка", "Не удалось обновить запись");
