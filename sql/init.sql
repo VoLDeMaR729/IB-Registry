@@ -1,107 +1,134 @@
-CREATE TABLE IF NOT EXISTS users (
+DROP TABLE IF EXISTS company_services, services, service_categories, licenses, companies, cities, users CASCADE;
+
+CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    login VARCHAR(50) NOT NULL UNIQUE,
-    password_hash VARCHAR(64) NOT NULL
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS company_types (
+CREATE TABLE cities (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE
+    name VARCHAR(100) UNIQUE NOT NULL
 );
 
-INSERT INTO company_types (name) VALUES 
-('Вендор (Разработчик)'), 
-('Интегратор'), 
-('Дистрибьютор'), 
-('Аудитор/Консалтинг')
-ON CONFLICT (name) DO NOTHING;
+INSERT INTO cities (name) VALUES 
+('Москва'), ('Санкт-Петербург'), ('Новосибирск'), ('Екатеринбург'), ('Казань'),
+('Нижний Новгород'), ('Челябинск'), ('Самара'), ('Омск'), ('Ростов-на-Дону'),
+('Уфа'), ('Красноярск'), ('Воронеж'), ('Пермь'), ('Волгоград'), ('Краснодар'),
+('Саратов'), ('Тюмень'), ('Тольятти'), ('Ижевск'), ('Барнаул'), ('Ульяновск'),
+('Иркутск'), ('Хабаровск'), ('Ярославль'), ('Владивосток'), ('Махачкала'),
+('Томск'), ('Оренбург'), ('Кемерово'), ('Новокузнецк'), ('Рязань'), ('Астрахань'),
+('Набережные Челны'), ('Пенза'), ('Киров'), ('Липецк'), ('Чебоксары'),
+('Балашиха'), ('Калининград'), ('Тула'), ('Курск'), ('Севастополь'),
+('Сочи'), ('Ставрополь'), ('Тверь'), ('Магнитогорск'), ('Иваново'),
+('Брянск'), ('Белгород'), ('Сургут'), ('Владимир'), ('Иннополис');
 
-CREATE TABLE IF NOT EXISTS companies (
+CREATE TABLE companies (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    inn VARCHAR(12) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255),
+    inn VARCHAR(12) UNIQUE,
     ogrn VARCHAR(15),
-    address TEXT NOT NULL,
-    license_num VARCHAR(50) NOT NULL,
-    type_id INT REFERENCES company_types(id),
-    license_date DATE NOT NULL,
+    city_id INTEGER REFERENCES cities(id),
+    address TEXT,
+    website VARCHAR(255),
     description TEXT
 );
 
-CREATE OR REPLACE FUNCTION auth_user_func(p_login VARCHAR, p_hash VARCHAR) 
-RETURNS BOOLEAN AS $$
-BEGIN
-    RETURN EXISTS(SELECT 1 FROM users WHERE login = p_login AND password_hash = p_hash);
-END;
-$$ LANGUAGE plpgsql;
+CREATE TABLE licenses (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    activity_type VARCHAR(255),
+    license_number VARCHAR(100),
+    issue_date DATE,
+    issuer VARCHAR(50)
+);
 
-CREATE OR REPLACE FUNCTION add_company_func(
-    p_name VARCHAR, 
-    p_inn VARCHAR,
-    p_ogrn VARCHAR,
-    p_address VARCHAR,
-    p_license_num VARCHAR,
-    p_type_name VARCHAR, 
-    p_date DATE, 
-    p_desc TEXT
-)
-RETURNS VOID AS $$
-DECLARE
-    v_type_id INT;
-BEGIN
-    SELECT id INTO v_type_id FROM company_types WHERE name = p_type_name;
-    
-    INSERT INTO companies (name, inn, ogrn, address, license_num, type_id, license_date, description)
-    VALUES (p_name, p_inn, p_ogrn, p_address, p_license_num, v_type_id, p_date, p_desc);
-END;
-$$ LANGUAGE plpgsql;
+CREATE TABLE service_categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) UNIQUE
+);
 
-CREATE OR REPLACE FUNCTION search_companies_func(p_name VARCHAR, p_type VARCHAR)
-RETURNS TABLE(
-    out_name VARCHAR, 
-    out_inn VARCHAR, 
-    out_ogrn VARCHAR, 
-    out_addr TEXT, 
-    out_lnum VARCHAR,
-    out_type VARCHAR, 
-    out_date DATE, 
-    out_desc TEXT
-) AS $$
-BEGIN
-    RETURN QUERY 
-    SELECT c.name, c.inn, c.ogrn, c.address, c.license_num, t.name, c.license_date, c.description
-    FROM companies c
-    JOIN company_types t ON c.type_id = t.id
-    WHERE (p_name = '' OR c.name ILIKE '%' || p_name || '%' OR c.inn LIKE '%' || p_name || '%')
-      AND (p_type = 'Все' OR t.name = p_type);
-END;
-$$ LANGUAGE plpgsql;
+CREATE TABLE services (
+    id SERIAL PRIMARY KEY,
+    category_id INTEGER REFERENCES service_categories(id),
+    name VARCHAR(200)
+);
 
-CREATE OR REPLACE FUNCTION update_company_func(
-    p_name VARCHAR, 
-    p_address VARCHAR,
-    p_license_num VARCHAR,
-    p_date DATE, 
-    p_desc TEXT
-)
-RETURNS VOID AS $$
-BEGIN
-    UPDATE companies 
-    SET address = p_address,
-        license_num = p_license_num,
-        license_date = p_date, 
-        description = p_desc
-    WHERE name = p_name;
-END;
-$$ LANGUAGE plpgsql;
+CREATE TABLE company_services (
+    company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    service_id INTEGER REFERENCES services(id) ON DELETE CASCADE,
+    PRIMARY KEY (company_id, service_id)
+);
 
-CREATE OR REPLACE FUNCTION delete_company_func(p_name VARCHAR)
-RETURNS VOID AS $$
-BEGIN
-    DELETE FROM companies WHERE name = p_name;
-END;
-$$ LANGUAGE plpgsql;
+INSERT INTO service_categories (name) VALUES 
+('Сетевая безопасность и Шлюзы'), 
+('Защита конечных точек и Серверов'), 
+('Криптография и Электронная подпись'),
+('Мониторинг, SOC и Расследования'),
+('Прикладная безопасность и Анализ кода'),
+('Консалтинг, Аудит и Интеграция');
 
-INSERT INTO users (login, password_hash) 
-VALUES ('admin', '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918')
-ON CONFLICT (login) DO NOTHING;
+-- 1. Сетевая безопасность (Код Безопасности, ИнфоТеКС, Солар)
+WITH cat AS (SELECT id FROM service_categories WHERE name = 'Сетевая безопасность и Шлюзы')
+INSERT INTO services (category_id, name) SELECT id, unnest(ARRAY[
+    'Межсетевые экраны нового поколения (напр. Solar, Континент 4)',
+    'Индустриальные шлюзы (защита АСУ ТП)',
+    'Виртуальные шлюзы безопасности',
+    'Защита каналов связи (VPN-шлюзы)',
+    'Системы обнаружения вторжений (СОВ/IDS)',
+    'Защита от DDoS-атак',
+    'Защита веб-приложений (WAF)',
+    'Контроль сетевого трафика (NTA)'
+]) FROM cat;
+
+-- 2. Защита конечных точек (Secret Net, Kaspersky, Dr.Web)
+WITH cat AS (SELECT id FROM service_categories WHERE name = 'Защита конечных точек и Серверов')
+INSERT INTO services (category_id, name) SELECT id, unnest(ARRAY[
+    'Средства защиты от несанкционированного доступа (НСД)',
+    'Модули доверенной загрузки (Плата/BIOS)',
+    'Антивирусная защита рабочих мест',
+    'Защита виртуальных сред (напр. vGate)',
+    'Защита мобильных устройств (MDM)',
+    'Защита от утечек информации (Контроль флешек/почты)'
+]) FROM cat;
+
+-- 3. Криптография (ИнфоТеКС, КриптоПро)
+WITH cat AS (SELECT id FROM service_categories WHERE name = 'Криптография и Электронная подпись')
+INSERT INTO services (category_id, name) SELECT id, unnest(ARRAY[
+    'Средства криптографической защиты информации (СКЗИ)',
+    'Клиенты для электронной подписи',
+    'Удостоверяющие центры (PKI)',
+    'Квантовые криптографические системы',
+    'Шифрование файлов и баз данных'
+]) FROM cat;
+
+-- 4. Мониторинг и SOC (Solar, Jet)
+WITH cat AS (SELECT id FROM service_categories WHERE name = 'Мониторинг, SOC и Расследования')
+INSERT INTO services (category_id, name) SELECT id, unnest(ARRAY[
+    'Центр мониторинга и реагирования (SOC 24/7)',
+    'Системы сбора и анализа событий (Сбор логов)',
+    'Киберразведка (Поиск угроз)',
+    'Компьютерная криминалистика (Расследование инцидентов)',
+    'Защита от корпоративного мошенничества'
+]) FROM cat;
+
+-- 5. Прикладная безопасность (Solar AppScreener, PT)
+WITH cat AS (SELECT id FROM service_categories WHERE name = 'Прикладная безопасность и Анализ кода')
+INSERT INTO services (category_id, name) SELECT id, unnest(ARRAY[
+    'Статический анализ кода (Поиск уязвимостей в ПО)',
+    'Динамический анализ приложений',
+    'Контроль прав доступа и учетных записей',
+    'Контроль привилегированных пользователей (Админов)'
+]) FROM cat;
+
+-- 6. Консалтинг и Интеграция (Джет, Софтмолл)
+WITH cat AS (SELECT id FROM service_categories WHERE name = 'Консалтинг, Аудит и Интеграция')
+INSERT INTO services (category_id, name) SELECT id, unnest(ARRAY[
+    'Аттестация объектов по требованиям ФСТЭК',
+    'Категорирование объектов КИИ (187-ФЗ)',
+    'Тестирование на проникновение (Имитация хакеров)',
+    'Построение комплексных систем защиты (Интеграция)',
+    'Аутсорсинг информационной безопасности',
+    'Обучение сотрудников киберграмотности'
+]) FROM cat;

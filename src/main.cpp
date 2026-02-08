@@ -6,23 +6,20 @@
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
-    Logger::init();
-    LOG_INFO("App Starting...");
 
-    DbManager db;
+    Logger::init(); 
+    LOG_INFO("Запуск приложения...");
 
-    if (!db.connect()) {
-        LOG_ERROR("Fatal: DB Connection failed at startup");
-        return -1;
-    }
-    db.initTables();
-    LoginDialog auth(db);
-    if (auth.exec() != QDialog::Accepted) {
-        LOG_INFO("Auth failed or cancelled by user");
+    DBManager db;
+    db.connectToDb();
+
+    LoginDialog loginDlg(db);
+    if (loginDlg.exec() != QDialog::Accepted) {
         return 0;
     }
-    LOG_INFO("Auth successful. Launching Main Window.");
-    MainWindow window(db); 
+
+    MainWindow window(nullptr);
     window.show();
+
     return app.exec();
 }

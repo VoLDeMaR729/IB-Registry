@@ -3,143 +3,199 @@
 #include <QSqlError>
 #include <QVariant>
 #include <QDebug>
-#include <QCryptographicHash>
-#include <thread>
-#include <chrono>
 
-DbManager::DbManager() {
+DBManager::DBManager() {
     m_db = QSqlDatabase::addDatabase("QPSQL");
 }
 
-DbManager::~DbManager() {
-    if (m_db.isOpen()) m_db.close();
+void DBManager::connectToDb() {
+    m_db.setHostName("ib_registry_db");
+    m_db.setDatabaseName("ib_registry");
+    m_db.setUserName("postgres");
+    m_db.setPassword("postgres");
+    if (!m_db.open()) qDebug() << m_db.lastError().text();
 }
 
-bool DbManager::connect() {
-    m_db.setHostName("ib_registry_db"); 
-    m_db.setPort(5432);
-    m_db.setDatabaseName("ib_company_db");
-    m_db.setUserName("admin");
-    m_db.setPassword("secret_password");
+bool DBManager::authenticate(const QString &login, const QString &password) {
+    return (login == "admin" && password == "admin");
+}
 
-    for (int i = 0; i < 5; ++i) {
-        qDebug() << "Попытка подключения к БД..." << (i + 1);
-        
-        if (m_db.open()) {
-            qDebug() << "Успешное подключение!";
-            return true;
+bool DBManager::addCompany(const Company &c) {
+    if (!m_db.isOpen()) connectToDb();
+    m_db.transaction();
+
+    // 1. Город
+    QSqlQuery qCity;
+    qCity.prepare("SELECT id FROM cities WHERE name = :name");
+    qCity.bindValue(":name", c.city);
+    int cityId = 1; 
+    if(qCity.exec() && qCity.next()) cityId = qCity.value(0).toInt();
+
+    // 2. Компания
+    QSqlQuery qComp;
+    qComp.prepare("INSERT INTO companies (name, full_name, inn, ogrn, address, website, city_id) "
+                  "VALUES (:n, :fn, :inn, :ogrn, :addr, :site, :cid) RETURNING id");
+    qComp.bindValue(":n", c.name);
+    qComp.bindValue(":fn", c.fullName);
+    qComp.bindValue(":inn", c.inn);
+    qComp.bindValue(":ogrn", c.ogrn);
+    qComp.bindValue(":addr", c.address);
+    qComp.bindValue(":site", c.website);
+    qComp.bindValue(":cid", cityId);
+
+    if (!qComp.exec()) { m_db.rollback(); return false; }
+    
+    qComp.next();
+    int companyId = qComp.value(0).toInt();
+
+    // 3. Лицензии
+    for (const auto &lic : c.licenses) {
+        QSqlQuery qLic;
+        qLic.prepare("INSERT INTO licenses (company_id, activity_type, license_number, issue_date) "
+                     "VALUES (:cid, :type, :num, :date)");
+        qLic.bindValue(":cid", companyId);
+        qLic.bindValue(":type", lic.activityType);
+        qLic.bindValue(":num", lic.number);
+        qLic.bindValue(":date", lic.date);
+        qLic.exec();
+    }
+
+    // 4. Услуги
+    for (const auto &servName : c.services) {
+        QSqlQuery qServId;
+        qServId.prepare("SELECT id FROM services WHERE name = :name");
+        qServId.bindValue(":name", servName);
+        if(qServId.exec() && qServId.next()) {
+            QSqlQuery qLink;
+            qLink.prepare("INSERT INTO company_services (company_id, service_id) VALUES (:cid, :sid)");
+            qLink.bindValue(":cid", companyId);
+            qLink.bindValue(":sid", qServId.value(0).toInt());
+            qLink.exec();
         }
-        
-        qWarning() << "Ошибка подключения:" << m_db.lastError().text();
-        qWarning() << "Ждем 2 секунды...";
-        
-        std::this_thread::sleep_for(std::chrono::seconds(2));
     }
-
-    qCritical() << "Критическая ошибка: БД недоступна.";
-    return false;
+    return m_db.commit();
 }
 
-bool DbManager::initTables() {
-    return true;
-}
+bool DBManager::updateCompany(const Company &c) {
+    if (!m_db.isOpen()) connectToDb();
+    m_db.transaction();
 
-bool DbManager::addCompany(const Company& c) {
-    QSqlQuery query(m_db);
-    query.prepare("SELECT add_company_func(:name, :inn, :ogrn, :addr, :lnum, :type, :date, :desc)");
-
-    query.bindValue(":name", c.name);
-    query.bindValue(":inn", c.inn);           
-    query.bindValue(":ogrn", c.ogrn);         
-    query.bindValue(":addr", c.address);      
-    query.bindValue(":lnum", c.licenseNum);   
-    query.bindValue(":type", c.type);
-    query.bindValue(":date", c.licenseDate);
-    query.bindValue(":desc", c.description);
-
-    if (!query.exec()) {
-        qCritical() << "Add company error:" << query.lastError().text();
-        return false;
-    }
-    return true;
-}
-
-bool DbManager::removeCompany(const QString& name) {
-    QSqlQuery query(m_db);
-    query.prepare("SELECT delete_company_func(:name)");
-    query.bindValue(":name", name);
+    // 1. Обновляем основные поля
+    QSqlQuery qUpd;
+    qUpd.prepare("UPDATE companies SET name=:n, full_name=:fn, address=:addr, website=:site, city_id=(SELECT id FROM cities WHERE name=:city) "
+                 "WHERE inn=:inn");
+    qUpd.bindValue(":n", c.name);
+    qUpd.bindValue(":fn", c.fullName);
+    qUpd.bindValue(":addr", c.address);
+    qUpd.bindValue(":site", c.website);
+    qUpd.bindValue(":city", c.city);
+    qUpd.bindValue(":inn", c.inn);
     
-    if (!query.exec()) {
-        qCritical() << "Delete error:" << query.lastError().text();
-        return false;
+    if (!qUpd.exec()) { m_db.rollback(); return false; }
+
+    QSqlQuery qId;
+    qId.prepare("SELECT id FROM companies WHERE inn=:inn");
+    qId.bindValue(":inn", c.inn);
+    if (!qId.exec() || !qId.next()) { m_db.rollback(); return false; }
+    int id = qId.value(0).toInt();
+
+    // 2. Чистим старое
+    QSqlQuery qDelLic;
+    qDelLic.prepare("DELETE FROM licenses WHERE company_id = :id");
+    qDelLic.bindValue(":id", id);
+    qDelLic.exec();
+
+    QSqlQuery qDelServ;
+    qDelServ.prepare("DELETE FROM company_services WHERE company_id = :id");
+    qDelServ.bindValue(":id", id);
+    qDelServ.exec();
+
+    // 3. Лицензии
+    for (const auto &lic : c.licenses) {
+        QSqlQuery qLic;
+        qLic.prepare("INSERT INTO licenses (company_id, activity_type, license_number, issue_date) "
+                     "VALUES (:cid, :type, :num, :date)");
+        qLic.bindValue(":cid", id);
+        qLic.bindValue(":type", lic.activityType);
+        qLic.bindValue(":num", lic.number);
+        qLic.bindValue(":date", lic.date);
+        qLic.exec();
     }
-    return true;
-}
 
-std::vector<Company> DbManager::getAllCompanies() {
-    return searchCompanies("", "Все");
-}
-
-std::vector<Company> DbManager::searchCompanies(const QString& name, const QString& type) {
-    std::vector<Company> list;
-    QSqlQuery query(m_db);
-    query.prepare("SELECT * FROM search_companies_func(:name, :type)");
-    query.bindValue(":name", name);
-    query.bindValue(":type", type);
-
-    if (query.exec()) {
-        while (query.next()) {
-            Company c;
-            c.name = query.value("out_name").toString();
-            c.inn = query.value("out_inn").toString();             
-            c.ogrn = query.value("out_ogrn").toString();           
-            c.address = query.value("out_addr").toString();        
-            c.licenseNum = query.value("out_lnum").toString();     
-            c.type = query.value("out_type").toString();
-            c.licenseDate = query.value("out_date").toDate();
-            c.description = query.value("out_desc").toString();
-            list.push_back(c);
+    // 4. Услуги
+    for (const auto &servName : c.services) {
+        QSqlQuery qServId;
+        qServId.prepare("SELECT id FROM services WHERE name = :name");
+        qServId.bindValue(":name", servName);
+        if(qServId.exec() && qServId.next()) {
+            QSqlQuery qLink;
+            qLink.prepare("INSERT INTO company_services (company_id, service_id) VALUES (:cid, :sid)");
+            qLink.bindValue(":cid", id);
+            qLink.bindValue(":sid", qServId.value(0).toInt());
+            qLink.exec();
         }
-    } else {
-        qCritical() << "Search error:" << query.lastError().text();
     }
-    return list;
+
+    return m_db.commit();
 }
 
-QString DbManager::hashPassword(const QString& password) {
-    QByteArray hash = QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256);
-    return QString(hash.toHex());
-}
-
-bool DbManager::addUser(const QString& login, const QString& password) {
-    return false; 
-}
-
-bool DbManager::updateCompany(const QString& name, const QString& address, const QString& licenseNum, const QDate& newDate, const QString& newDesc) {
-    QSqlQuery query(m_db);
-    query.prepare("SELECT update_company_func(:name, :addr, :lnum, :date, :desc)");
+Company DBManager::getCompanyFullData(const QString &inn) {
+    Company c;
+    if (!m_db.isOpen()) connectToDb();
     
+    QSqlQuery q;
+    q.prepare("SELECT c.id, c.name, c.full_name, c.inn, c.ogrn, c.address, c.website, ci.name "
+              "FROM companies c JOIN cities ci ON c.city_id = ci.id WHERE c.inn = :inn");
+    q.bindValue(":inn", inn);
+    
+    if (q.exec() && q.next()) {
+        c.id = q.value(0).toInt();
+        c.name = q.value(1).toString();
+        c.fullName = q.value(2).toString();
+        c.inn = q.value(3).toString();
+        c.ogrn = q.value(4).toString();
+        c.address = q.value(5).toString();
+        c.website = q.value(6).toString();
+        c.city = q.value(7).toString();
+    }
+    QSqlQuery qLic;
+    qLic.prepare("SELECT activity_type, license_number, issue_date FROM licenses WHERE company_id = :id");
+    qLic.bindValue(":id", c.id);
+    qLic.exec();
+    while(qLic.next()) {
+        c.licenses.append({
+            qLic.value(0).toString(),
+            qLic.value(1).toString(),
+            qLic.value(2).toDate()
+        });
+    }
+
+    QSqlQuery qServ;
+    qServ.prepare("SELECT s.name FROM services s "
+                  "JOIN company_services cs ON s.id = cs.service_id "
+                  "WHERE cs.company_id = :id");
+    qServ.bindValue(":id", c.id);
+    qServ.exec();
+    while(qServ.next()) {
+        c.services.append(qServ.value(0).toString());
+    }
+
+    return c;
+}
+
+bool DBManager::removeCompany(const QString &name) {
+    if (!m_db.isOpen()) connectToDb();
+    QSqlQuery query;
+    query.prepare("DELETE FROM companies WHERE name = :name");
     query.bindValue(":name", name);
-    query.bindValue(":addr", address);        
-    query.bindValue(":lnum", licenseNum);     
-    query.bindValue(":date", newDate);
-    query.bindValue(":desc", newDesc);
-    
-    if (!query.exec()) {
-        qCritical() << "Update error:" << query.lastError().text();
-        return false;
-    }
-    return true;
+    return query.exec();
 }
 
-bool DbManager::authenticate(const QString& login, const QString& password) {
-    QSqlQuery query(m_db);
-    query.prepare("SELECT auth_user_func(:login, :hash)");
-    query.bindValue(":login", login);
-    query.bindValue(":hash", hashPassword(password));
-    
-    if (query.exec() && query.next()) {
-        return query.value(0).toBool();
-    }
-    return false;
+QSqlTableModel* DBManager::getTableModel(QObject *parent) {
+    if (!m_db.isOpen()) connectToDb();
+    QSqlTableModel *model = new QSqlTableModel(parent, m_db);
+    model->setTable("companies");
+    model->setEditStrategy(QSqlTableModel::OnFieldChange);
+    model->select();
+    return model;
 }

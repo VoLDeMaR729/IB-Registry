@@ -1,43 +1,43 @@
 #include "login_dialog.h"
 #include <QVBoxLayout>
-#include <QPushButton>
 #include <QMessageBox>
 #include <QLabel>
+#include <QPushButton>
 
-LoginDialog::LoginDialog(DbManager& db, QWidget *parent) 
-    : QDialog(parent), m_db(db) 
+LoginDialog::LoginDialog(DBManager& db, QWidget *parent)
+    : QDialog(parent), m_db(db)
 {
-    setWindowTitle("Авторизация");
     setupUI();
 }
 
 void LoginDialog::setupUI() {
-    QVBoxLayout* layout = new QVBoxLayout(this);
+    setWindowTitle("Авторизация");
     resize(300, 150);
 
-    // Логин
-    layout->addWidget(new QLabel("Логин:", this));
+    QVBoxLayout* layout = new QVBoxLayout(this);
+
     m_loginEdit = new QLineEdit(this);
+    m_loginEdit->setPlaceholderText("Логин");
+    layout->addWidget(new QLabel("Логин:"));
     layout->addWidget(m_loginEdit);
 
-    // Пароль
-    layout->addWidget(new QLabel("Пароль:", this));
-    m_passwordEdit = new QLineEdit(this);
-    m_passwordEdit->setEchoMode(QLineEdit::Password); // Скрывать символы
-    layout->addWidget(m_passwordEdit);
+    m_passEdit = new QLineEdit(this);
+    m_passEdit->setPlaceholderText("Пароль");
+    m_passEdit->setEchoMode(QLineEdit::Password);
+    layout->addWidget(new QLabel("Пароль:"));
+    layout->addWidget(m_passEdit);
 
-    // Кнопка входа
-    QPushButton* btnLogin = new QPushButton("Войти", this);
-    connect(btnLogin, &QPushButton::clicked, this, &LoginDialog::onLoginClicked);
-    layout->addWidget(btnLogin);
+    m_loginBtn = new QPushButton("Войти", this);
+    connect(m_loginBtn, &QPushButton::clicked, this, &LoginDialog::onLoginClicked);
+    layout->addWidget(m_loginBtn);
 }
 
 void LoginDialog::onLoginClicked() {
     QString login = m_loginEdit->text();
-    QString pass = m_passwordEdit->text();
+    QString pass = m_passEdit->text();
 
     if (m_db.authenticate(login, pass)) {
-        accept(); // Закрыть диалог с результатом Success
+        accept();
     } else {
         QMessageBox::warning(this, "Ошибка", "Неверный логин или пароль");
     }

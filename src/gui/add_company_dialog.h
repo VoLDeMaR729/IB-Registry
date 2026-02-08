@@ -1,10 +1,13 @@
 #pragma once
 #include <QDialog>
 #include <QLineEdit>
-#include <QDateEdit>
-#include <QTextEdit>
 #include <QComboBox>
-#include <QRegularExpressionValidator>
+#include <QTabWidget>
+#include <QTableWidget>
+#include <QTreeWidget>
+#include <QDateEdit>
+#include <QPushButton>
+#include <QLabel>
 #include "../core/domain_types.h"
 
 class AddCompanyDialog : public QDialog {
@@ -12,23 +15,50 @@ class AddCompanyDialog : public QDialog {
 
 public:
     explicit AddCompanyDialog(QWidget *parent = nullptr);
-    
-    Company getCompanyData() const;
-    void setCompanyData(const Company& c);
+    Company getCompanyData() const;           
+    void setCompanyData(const Company &c); 
+    void setReadOnly(bool readOnly); 
+
+private slots:
+    void addLicenseRow();
+    void removeLicenseRow();
+    void onLicenseTypeChanged(int row);
+    void onEditClicked();
 
 private:
-    void setupUI();
+    void setupUi();
+    void setupGeneralTab();
+    void setupLicensesTab();
+    void setupServicesTab();
+    void populateServicesTree();
+    void loadCities();
 
-    QComboBox* m_nameEdit; 
+    QTabWidget *m_tabs;
+    bool m_isViewMode = false;
+
+    // Кнопки управления
+    QPushButton *m_saveBtn;
+    QPushButton *m_cancelBtn;
+    QPushButton *m_editBtn;
+
+    // Вкладка 1
+    QComboBox *m_orgTypeCombo; 
+    QLineEdit *m_nameEdit;
+    QLineEdit *m_fullNameEdit;
+    QLineEdit *m_innEdit;
+    QLineEdit *m_ogrnEdit;
+    QComboBox *m_cityCombo;
+    QLineEdit *m_websiteEdit;
     
-    QLineEdit* m_innEdit;
-    QLineEdit* m_ogrnEdit;
+    QLineEdit *m_streetEdit; 
+    QLineEdit *m_houseEdit;
+    QLineEdit *m_officeEdit;
     
-    QComboBox* m_cityCombo;
-    QLineEdit* m_addressEdit;
-    
-    QLineEdit* m_licenseNumEdit;
-    QComboBox* m_typeCombo;
-    QDateEdit* m_dateEdit;
-    QTextEdit* m_descEdit;
+    // Вкладка 2
+    QTableWidget *m_licensesTable;
+    QPushButton *m_addLicenseBtn;
+    QPushButton *m_delLicenseBtn;
+
+    // Вкладка 3
+    QTreeWidget *m_servicesTree;
 };

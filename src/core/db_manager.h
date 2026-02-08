@@ -1,27 +1,26 @@
 #pragma once
-
 #include <QSqlDatabase>
-#include <vector>
+#include <QSqlTableModel>
 #include <QString>
+#include <QVariant>
 #include "domain_types.h"
 
-class DbManager {
+class DBManager {
 public:
-    DbManager();
-    ~DbManager();
+    DBManager();
+    void connectToDb();
 
-    bool connect();
-    bool initTables();
-    bool addCompany(const Company& company);
-    bool removeCompany(const QString& name);
-    bool updateCompany(const QString& name, const QString& address, const QString& licenseNum, const QDate& newDate, const QString& newDesc);
-    std::vector<Company> searchCompanies(const QString& name, const QString& type);
-    std::vector<Company> getAllCompanies();
+    // Основные методы
+    bool addCompany(const Company &company);
+    bool updateCompany(const Company &company);
+    bool removeCompany(const QString &name);
+    
+    // Получение полных данных для редактирования
+    Company getCompanyFullData(const QString &inn);
 
-    bool authenticate(const QString& login, const QString& password);
-    bool addUser(const QString& login, const QString& password);
+    QSqlTableModel* getTableModel(QObject *parent = nullptr);
+    bool authenticate(const QString &login, const QString &password);
 
 private:
     QSqlDatabase m_db;
-    QString hashPassword(const QString& password);
 };
