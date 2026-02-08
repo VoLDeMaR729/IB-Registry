@@ -105,8 +105,6 @@ void MainWindow::onTableDoubleClicked(const QModelIndex &index) {
 
     AddCompanyDialog d(this);
     d.setCompanyData(c);
-    
-    // ВАЖНО: Сразу ставим режим "Только чтение"
     d.setReadOnly(true); 
 
     if (d.exec() == QDialog::Accepted) {
